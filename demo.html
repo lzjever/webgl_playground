@@ -1,0 +1,251 @@
+<html>
+
+<head>
+<meta http-equiv="content-type" content="text/html">
+
+
+<script type="text/javascript">
+
+function color_d2f(val){
+    return val / 0xff*(1.0)
+}
+
+var canvas = null;
+var gl = null;
+
+
+var current_cc_in_pixel = null;  //coordinate of the circle centre point.
+var mouse_cc_offset = null;
+function gl_init()
+{
+    try
+    {
+        canvas = document.getElementById("gl_canvas");
+        gl = canvas.getContext("webgl");
+        if(!gl)
+            throw 'Opps!';
+
+    }
+    catch(e)
+    {
+        alert("Could not initialise WebGL.");
+        return false;
+    }
+    gl.viewportWidth = canvas.width;
+    gl.viewportHeight = canvas.height;
+    gl.viewport(0, 0, gl.viewportWidth, gl.viewportHeight);
+
+    current_cc_in_pixel = {x:canvas.width/2.0,y:canvas.height/2.0};
+    return true;
+}
+
+var vs_object = null;
+var fs_object = null;
+
+function shader_init(vs, fs)
+{
+    vs_object = gl.createShader(gl.VERTEX_SHADER);
+    fs_object = gl.createShader(gl.FRAGMENT_SHADER);
+    gl.shaderSource(vs_object, vs);
+    gl.shaderSource(fs_object, fs);
+    gl.compileShader(vs_object);
+    if (!gl.getShaderParameter(vs_object, gl.COMPILE_STATUS))
+    {
+        alert("VS: " + gl.getShaderInfoLog(vs_object));
+        return false;
+    }
+    gl.compileShader(fs_object);
+    if (!gl.getShaderParameter(fs_object, gl.COMPILE_STATUS))
+    {
+        alert("FS: " +gl.getShaderInfoLog(fs_object));
+        return false;
+    }
+    return true;
+}
+
+var prog_object;
+var position_index;
+function prog_init(positionName)
+{
+    prog_object = gl.createProgram();
+    gl.attachShader(prog_object, vs_object);
+    gl.attachShader(prog_object, fs_object);
+    gl.bindAttribLocation(prog_object, position_index, positionName);
+    gl.linkProgram(prog_object);
+    if (!gl.getProgramParameter(prog_object, gl.LINK_STATUS))
+    {
+        alert(gl.getProgramInfoLog(prog_object));
+        return false;
+    }
+    gl.useProgram(prog_object);
+    return true;
+}
+
+function gl_render(vertices, vertex_size, vertex_len, vs, fs, position_name)
+{
+    if(!shader_init(vs, fs))
+        return false;
+    if(!prog_init(position_name))
+        return false;
+
+    var buffer = gl.createBuffer();
+    gl.bindBuffer(gl.ARRAY_BUFFER, buffer);
+    gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(vertices), gl.STATIC_DRAW);
+
+    gl.enableVertexAttribArray(position_index);
+    gl.vertexAttribPointer(position_index, vertex_size, gl.FLOAT, false, 0, 0);
+
+    gl.clearColor(1.0,1.0,1.0, 1.0);  // 0xffffff is (rgb 1.0 1.0 1.0)
+    gl.clear(gl.COLOR_BUFFER_BIT);
+    gl.drawArrays(gl.TRIANGLE_STRIP, 0, vertex_len);
+}
+
+
+
+
+function proportion_from_pixel(pixel_position,pixel_max)
+{
+    return pixel_position*2 / (pixel_max * 1.0) -1.0;
+}
+
+
+
+function draw_circle(x,y)
+{
+    var margin = (640-500) / 2.0;
+    var pr2p = proportion_from_pixel;
+    var vertices = 
+    [
+        pr2p (margin + 500, 640) , pr2p (margin + 500, 640) ,
+        pr2p (margin + 500, 640) , pr2p (margin, 640) ,
+        pr2p (margin, 640) , pr2p (margin + 500, 640) ,
+        pr2p (margin , 640) , pr2p (margin , 640)
+    ];
+    var vs = 
+        "precision mediump float;" + 
+        "attribute vec4 position;" +
+        "varying vec2 textureCoordinate;" +
+        "void main()" +
+        "{" +
+        "   gl_Position = position;" +
+        "   textureCoordinate = position.xy;" +
+        "}";
+    var fs = 
+        "precision mediump float;" +
+        "varying vec2 textureCoordinate;" +
+        "void main()" +
+        "{" +
+        "   if(length(textureCoordinate - vec2(#mx#,#my#) ) < 0.5)" +
+        "       gl_FragColor = vec4(#cc1#, #cc2#, #cc3#,1.0);" +
+        "   else { " +
+        "       if(length(textureCoordinate - vec2(#mx#,#my#)) >= 0.5 &&length(textureCoordinate- vec2(#mx#,#my#)) <= 0.503)" +
+        "           gl_FragColor = vec4(#bc1#, #bc2#, #bc3#, 1.0);" +
+        "       else "+
+        "           gl_FragColor = vec4(#rc1#, #rc2#, #rc3#, 1.0);" +
+        "       } "+
+        "}"; 
+    //rectangle #AAAAAA
+    var in_rectangle_r = color_d2f(0xAA);
+    var in_rectangle_g = color_d2f(0xAA);
+    var in_rectangle_b = color_d2f(0xAA);
+    fs = fs.replace('#rc1#',in_rectangle_r);
+    fs = fs.replace('#rc2#',in_rectangle_g);
+    fs = fs.replace('#rc3#',in_rectangle_b);
+    //in_circle #555555
+    var in_circle_r = color_d2f(0x55);
+    var in_circle_g = color_d2f(0x55);
+    var in_circle_b = color_d2f(0x55);
+    fs = fs.replace('#cc1#',in_circle_r);
+    fs = fs.replace('#cc2#',in_circle_g);
+    fs = fs.replace('#cc3#',in_circle_b);
+    //circle_border #222222
+    var border_circle_r = color_d2f(0x22);
+    var border_circle_g = color_d2f(0x22);
+    var border_circle_b = color_d2f(0x22);
+    fs = fs.replace('#bc1#',border_circle_r);
+    fs = fs.replace('#bc2#',border_circle_g);
+    fs = fs.replace('#bc3#',border_circle_b);
+
+    //mouse pos
+    fs = fs.replace(/\#mx#/g,proportion_from_pixel(x,canvas.width));
+    fs = fs.replace(/\#my#/g,proportion_from_pixel(y,canvas.height));
+
+    
+    current_cc_in_pixel.x = x;
+    current_cc_in_pixel.y = y;
+    gl_render(vertices, 2, 4, vs, fs, "position");
+}
+
+function demo_init()
+{
+    if(!gl_init())
+        return false;
+    canvas.addEventListener("mousedown",do_mouseDown,false); 
+    canvas.addEventListener('mousemove', do_mouseMove,false); 
+    canvas.addEventListener('mouseup', do_mouseUp, false); 
+    draw_circle(current_cc_in_pixel.x,current_cc_in_pixel.y);
+}
+
+ function get_mouse_pos(canvas, e) { 
+   var rect = canvas.getBoundingClientRect(); 
+   return { 
+     x: e.clientX - rect.left * (canvas.width / rect.width),
+     y: e.clientY - rect.top * (canvas.height / rect.height)
+   }
+ }
+
+function to_righthand_coordinate(y)
+{
+    return canvas.height - y;
+}
+
+function test_hit(x,y)
+{
+    var radius = canvas.height / 4;
+    distance = Math.sqrt( Math.pow(x - current_cc_in_pixel.x , 2) + 
+        Math.pow(y - current_cc_in_pixel.y , 2) )
+    //alert(distance);
+
+    return distance <= radius;
+    
+}
+
+function do_mouseDown(e)
+{
+    var x = get_mouse_pos(canvas,e).x;
+    var y = to_righthand_coordinate(get_mouse_pos(canvas,e).y );
+    if (e.which == 1 && test_hit(x,y)){
+        mouse_cc_offset = {x:x - current_cc_in_pixel.x ,y: y - current_cc_in_pixel.y};
+    }
+        
+} 
+function do_mouseMove(e)
+{
+    e= e || window.event;
+    var x = get_mouse_pos(canvas,e).x;
+    var y = to_righthand_coordinate(get_mouse_pos(canvas,e).y );
+
+    if (e.which == 1){
+        draw_circle(x - mouse_cc_offset.x,y - mouse_cc_offset.y);
+    }
+} 
+function do_mouseUp(e)
+{ 
+    //var x = get_mouse_pos(canvas,e).x;
+    //var y = to_righthand_coordinate(get_mouse_pos(canvas,e).y );
+
+} 
+
+</script>
+
+
+</head>
+
+
+<body onload="demo_init();">
+
+    <canvas id="gl_canvas" style="border:1px solid black;" width="640" height="640"></canvas>
+
+</body>
+
+</html>
