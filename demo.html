@@ -210,12 +210,18 @@ function test_hit(x,y)
     
 }
 
+var click_in_circle = false;
 function do_mouseDown(e)
 {
     var x = get_mouse_pos(canvas,e).x;
     var y = to_righthand_coordinate(get_mouse_pos(canvas,e).y );
     if (e.which == 1 && test_hit(x,y)){
+        click_in_circle = true;
         mouse_cc_offset = {x:x - current_cc_in_pixel.x ,y: y - current_cc_in_pixel.y};
+    }
+    else
+    {
+        click_in_circle = false;
     }
         
 } 
@@ -225,7 +231,7 @@ function do_mouseMove(e)
     var x = get_mouse_pos(canvas,e).x;
     var y = to_righthand_coordinate(get_mouse_pos(canvas,e).y );
 
-    if (e.which == 1){
+    if (e.which == 1 && test_hit(x,y) && click_in_circle){
         draw_circle(x - mouse_cc_offset.x,y - mouse_cc_offset.y);
     }
 } 
